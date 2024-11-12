@@ -1,4 +1,4 @@
-use hickory_client::{client::{AsyncClient, ClientHandle}, error::ClientError};
+use hickory_client::{client::{AsyncClient, ClientHandle}, error::{ClientError, ClientErrorKind}};
 use hickory_proto::{
     error::ProtoError,
     h2::{HttpsClientConnect, HttpsClientStreamBuilder},
@@ -77,7 +77,16 @@ impl Resolver {
             },
             Ok(Err(e)) => {
                 log::warn!("DNS query error, creating new client: {:?}", e);
-                *self.client.write().await = Self::create_client().await?;
+
+                match e.kind() {
+                    ClientErrorKind::Proto(err) => {
+                        if err.is_busy() {
+                            *self.client.write().await = Self::create_client().await?;
+                        }
+                    },
+                    _ => {}
+                }
+
                 Err(ResolverError::Client(e))
             },
             Err(_) => {
