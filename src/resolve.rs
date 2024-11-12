@@ -21,7 +21,10 @@ use tokio::{
 
 // Constants for configuration
 const DNS_TIMEOUT: Duration = Duration::from_secs(5);
-const CLOUDFLARE_DNS: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 443);
+const DNS_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 443);
+const DNS_HOST: &str = "cloudflare-dns.com";
+// const DNS_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(80, 152, 203, 134)), 443);
+// const DNS_HOST: &str = "doh.kekew.info";
 
 static CONFIG: Lazy<rustls::ClientConfig> = Lazy::new(|| rustls_platform_verifier::tls_config());
 
@@ -43,7 +46,7 @@ impl Resolver {
     async fn create_client() -> Result<AsyncClient, ResolverError> {
         let client_config = Arc::new(CONFIG.clone());
         let connection: HttpsClientConnect<AsyncIoTokioAsStd<TcpStream>> = HttpsClientStreamBuilder::with_client_config(client_config)
-            .build(CLOUDFLARE_DNS, "cloudflare-dns.com".to_string());
+            .build(DNS_ADDR, DNS_HOST.to_string());
 
         let (client, task) = AsyncClient::connect(connection).await?;
         tokio::spawn(task);
@@ -59,7 +62,7 @@ impl Resolver {
         })
     }
 
-    pub async fn resolve(&self, request: &Request) -> Result<Vec<Record>, ResolverError> {
+    pub async fn resolve(&self, request: &Request) -> Result<Vec<Record>, ResolverError> { // need to handle being busy, it could mean multiple people are using the client
         let mut client = self.client.read().await.clone();
         
         let query_result = timeout(
