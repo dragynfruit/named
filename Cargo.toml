@@ -1,0 +1,41 @@
+[package]
+name = "named"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.83"
+bincode = "1.3.3"
+dashmap = { version = "6.1.0", features = ["inline"] }
+env_logger = "0.11.5"
+hickory-client = "0.24.1"
+hickory-proto = { version = "0.24.1", features = [
+    "dns-over-https-rustls",
+    "mdns",
+    "serde-config",
+    "tokio",
+] }
+hickory-server = "0.24.1"
+log = "0.4.22"
+metrics = "0.24.0"
+once_cell = "1.20.2"
+rustls = "0.21.12"
+rustls-platform-verifier = "0.1.1"
+serde = "1.0.214"
+sled = "0.34.7"
+thiserror = "2.0.3"
+tokio = { version = "1.41.0", default-features = false, features = [
+    "rt-multi-thread",
+    "macros",
+    "signal",
+    "net",
+] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+debug = false
+strip = true
+debug-assertions = false
+overflow-checks = false
