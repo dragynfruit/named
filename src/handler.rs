@@ -176,7 +176,7 @@ impl Handler {
                 let cache_size = cache.len();
                 let cache_capacity = cache.capacity();
                 let avg_response = metrics.avg_response_time();
-                let memory_usage = (cache_size * std::mem::size_of::<CacheEntry>()) / 1024 / 1024;
+                let memory_usage = (cache_size * std::mem::size_of::<CacheEntry>()) / 1024;
 
                 // Report metrics
                 gauge!("dns_cache_hit_rate").set(hit_rate as f64);
@@ -185,10 +185,8 @@ impl Handler {
                 gauge!("dns_cache_avg_response_time_ms").set(avg_response);
 
                 info!(
-                    "Cache metrics report: hit_rate={:.2}%, size={}/{}, memory={}MB, avg_response={:.2}ms",
+                    "Cache metrics report: hit_rate={:.2}%, memory={}KB, avg_response={:.2}ms",
                     hit_rate * 100.0,
-                    cache_size,
-                    cache_capacity,
                     memory_usage,
                     avg_response
                 );
@@ -213,9 +211,10 @@ impl Handler {
                 let cleaned_count = initial_size - cache.len();
                 
                 info!(
-                    "Cache cleanup completed: removed={} entries, remaining={} entries",
+                    "Cache cleanup completed: removed={} entries, remaining={} entries, out of={} total",
                     cleaned_count,
-                    cache.len()
+                    cache.len(),
+                    initial_size
                 );
             }
         });
