@@ -51,7 +51,7 @@ fn parse_args() -> Result<AppArgs, pico_args::Error> {
 
 #[tokio::main]
 async fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("trace")).init();
 
     let args = match parse_args() {
         Ok(v) => v,
