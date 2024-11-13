@@ -61,7 +61,7 @@ async fn main() {
         }
     };
 
-    let host = args.host.unwrap_or_else(|| env::var("ADDR").unwrap_or_else(|_| "127.0.0.2".to_string()));
+    let host = args.host.unwrap_or_else(|| env::var("HOST").unwrap_or_else(|_| "127.0.0.2".to_string()));
     let port = args.port.unwrap_or_else(|| env::var("PORT").unwrap_or_else(|_| "53".to_string()));
     let handler = Handler::new().await;
 
