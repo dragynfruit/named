@@ -61,12 +61,12 @@ async fn main() {
         }
     };
 
-    let addr = args.host.unwrap_or_else(|| env::var("ADDR").unwrap_or_else(|_| "127.0.0.2".to_string()));
+    let host = args.host.unwrap_or_else(|| env::var("ADDR").unwrap_or_else(|_| "127.0.0.2".to_string()));
     let port = args.port.unwrap_or_else(|| env::var("PORT").unwrap_or_else(|_| "53".to_string()));
     let handler = Handler::new().await;
 
     let mut server = ServerFuture::new(handler);
-    let udp = UdpSocket::bind(format!("{}:{}", addr, port))
+    let udp = UdpSocket::bind(format!("{}:{}", host, port))
         .await
         .expect("Failed to bind UDP socket");
     server.register_socket(udp);
