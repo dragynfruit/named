@@ -7,7 +7,7 @@ use hickory_server::{
 };
 use metrics::{counter, gauge, CounterFn};
 use tokio::time::interval;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -68,7 +68,6 @@ impl CacheEntry {
 struct CacheMetrics {
     hits: AtomicU64,
     misses: AtomicU64,
-    size: AtomicUsize,
     total_response_time: AtomicU64,
     response_count: AtomicU64,
 }
@@ -78,7 +77,6 @@ impl CacheMetrics {
         Self {
             hits: AtomicU64::new(0),
             misses: AtomicU64::new(0),
-            size: AtomicUsize::new(INITIAL_CACHE_SIZE),
             total_response_time: AtomicU64::new(0),
             response_count: AtomicU64::new(0),
         }
@@ -177,7 +175,7 @@ impl Handler {
                     "Cache metrics - Hit rate: {:.2}%, Size: {}/{}, Memory: ~{}MB, Avg Response: {:.2}ms",
                     hit_rate * 100.0,
                     cache_size,
-                    metrics.size.load(Ordering::Relaxed),
+                    cache_capacity,
                     (cache_size * std::mem::size_of::<CacheEntry>()) / 1024 / 1024,
                     avg_response
                 );
