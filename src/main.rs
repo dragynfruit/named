@@ -70,7 +70,7 @@ async fn main() {
         .await
         .expect("Failed to bind UDP socket");
     server.register_socket(udp);
-    log::info!("Listening at {}:{}", addr, port);
+    log::info!("Listening at {}:{}", host, port);
 
     tokio::signal::ctrl_c()
         .await
