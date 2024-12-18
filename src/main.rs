@@ -6,6 +6,7 @@ use tokio::net::UdpSocket;
 
 mod handler;
 mod resolve;
+mod config;
 
 const HELP: &str = "\
 Named
@@ -14,16 +15,30 @@ USAGE:
   named [OPTIONS]
 
 FLAGS:
-    -h, --help            Prints help information
+    -h, --help                        Prints help information
 
 OPTIONS:
-    --host <host>         Host to listen on [default: 127.0.0.2]
-    --port <port>         Port to listen on [default: 53]
+    --host <host>                     Host to listen on [default: 127.0.0.2]
+    --port <port>                     Port to listen on [default: 53]
+    --config <config>                 Path to configuration file
+    --dns-addr <dns_addr>             DNS server address [default: 1.1.1.1:443]
+    --dns-timeout <dns_timeout>       DNS query timeout in seconds [default: 5]
+    --dns-host <dns_host>             DNS server host [default: cloudflare-dns.com]
+    --initial-cache-size <size>       Initial cache size [default: 10000]
+    --metrics-interval <secs>         Metrics reporting interval in seconds [default: 60]
+    --cache-cleanup-interval <secs>   Cache cleanup interval in seconds [default: 60]
 ";
 
 struct AppArgs {
     host: Option<String>,
     port: Option<String>,
+    config_path: Option<String>,
+    dns_addr: Option<String>,
+    dns_timeout: Option<String>,
+    dns_host: Option<String>,
+    initial_cache_size: Option<String>,
+    metrics_interval: Option<String>,
+    cache_cleanup_interval: Option<String>,
 }
 
 fn parse_args() -> Result<AppArgs, pico_args::Error> {
@@ -38,6 +53,13 @@ fn parse_args() -> Result<AppArgs, pico_args::Error> {
     let args = AppArgs {
         host: pargs.opt_value_from_str("--host")?,
         port: pargs.opt_value_from_str("--port")?,
+        config_path: pargs.opt_value_from_str("--config")?,
+        dns_addr: pargs.opt_value_from_str("--dns-addr")?,
+        dns_timeout: pargs.opt_value_from_str("--dns-timeout")?,
+        dns_host: pargs.opt_value_from_str("--dns-host")?,
+        initial_cache_size: pargs.opt_value_from_str("--initial-cache-size")?,
+        metrics_interval: pargs.opt_value_from_str("--metrics-interval")?,
+        cache_cleanup_interval: pargs.opt_value_from_str("--cache-cleanup-interval")?,
     };
 
     // It's up to the caller what to do with the remaining arguments.
@@ -61,16 +83,63 @@ async fn main() {
         }
     };
 
-    let host = args.host.unwrap_or_else(|| env::var("HOST").unwrap_or_else(|_| "127.0.0.2".to_string()));
-    let port = args.port.unwrap_or_else(|| env::var("PORT").unwrap_or_else(|_| "53".to_string()));
-    let handler = Handler::new().await;
+    // Load configurations
+    let mut config = config::Config::new();
+
+    if let Some(ref config_path) = args.config_path {
+        config = config::Config::from_file(config_path)
+            .expect("Failed to load config file");
+    } else if let Ok(config_path) = env::var("CONFIG_PATH") {
+        config = config::Config::from_file(&config_path)
+            .expect("Failed to load config file");
+    }
+
+    // Override with command line arguments or environment variables
+    config.host = args.host
+        .or_else(|| env::var("HOST").ok())
+        .unwrap_or(config.host);
+
+    config.port = args.port
+        .or_else(|| env::var("PORT").ok())
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(config.port);
+
+    config.dns_addr = args.dns_addr
+        .or_else(|| env::var("DNS_ADDR").ok())
+        .unwrap_or(config.dns_addr);
+
+    config.dns_timeout = args.dns_timeout
+        .or_else(|| env::var("DNS_TIMEOUT").ok())
+        .and_then(|t| t.parse().ok())
+        .unwrap_or(config.dns_timeout);
+
+    config.dns_host = args.dns_host
+        .or_else(|| env::var("DNS_HOST").ok())
+        .unwrap_or(config.dns_host);
+
+    config.initial_cache_size = args.initial_cache_size
+        .or_else(|| env::var("INITIAL_CACHE_SIZE").ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(config.initial_cache_size);
+
+    config.metrics_interval = args.metrics_interval
+        .or_else(|| env::var("METRICS_INTERVAL").ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(config.metrics_interval);
+
+    config.cache_cleanup_interval = args.cache_cleanup_interval
+        .or_else(|| env::var("CACHE_CLEANUP_INTERVAL").ok())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(config.cache_cleanup_interval);
+
+    let handler = Handler::new(&config).await;
 
     let mut server = ServerFuture::new(handler);
-    let udp = UdpSocket::bind(format!("{}:{}", host, port))
+    let udp = UdpSocket::bind(format!("{}:{}", config.host, config.port))
         .await
         .expect("Failed to bind UDP socket");
     server.register_socket(udp);
-    log::info!("Listening at {}:{}", host, port);
+    log::info!("Listening at {}:{}", config.host, config.port);
 
     tokio::signal::ctrl_c()
         .await

@@ -11,10 +11,7 @@ use tokio::time::interval;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-const INITIAL_CACHE_SIZE: usize = 10_000;
-const METRICS_INTERVAL: u64 = 60; // 1 minute
-const CACHE_CLEANUP_INTERVAL: u64 = 60; // 1 minute
+use crate::config::Config;
 
 #[derive(Debug, Clone)]
 struct CacheEntry {
@@ -137,20 +134,28 @@ pub struct Handler {
     resolver: Resolver,
     cache: Arc<DashMap<String, CacheEntry>>,
     metrics: Arc<CacheMetrics>,
+    cache_cleanup_interval: Duration,
+    metrics_interval: Duration,
 }
 
 impl Handler {
-    pub async fn new() -> Self {
-        info!("Initializing DNS cache handler [cache_size={}, metrics_interval={}s, cleanup_interval={}s]",
-            INITIAL_CACHE_SIZE, METRICS_INTERVAL, CACHE_CLEANUP_INTERVAL);
+    pub async fn new(config: &Config) -> Self {
+        info!(
+            "Initializing DNS cache handler [cache_size={}, metrics_interval={}s, cleanup_interval={}s]",
+            config.initial_cache_size,
+            config.metrics_interval,
+            config.cache_cleanup_interval,
+        );
 
         let handler = Self {
-            resolver: Resolver::new().await.map_err(|e| {
+            resolver: Resolver::new(config).await.map_err(|e| {
                 error!("Failed to initialize resolver: {}", e);
                 e
             }).unwrap(),
-            cache: Arc::new(DashMap::with_capacity(INITIAL_CACHE_SIZE)),
+            cache: Arc::new(DashMap::with_capacity(config.initial_cache_size)),
             metrics: Arc::new(CacheMetrics::new()),
+            cache_cleanup_interval: Duration::from_secs(config.cache_cleanup_interval),
+            metrics_interval: Duration::from_secs(config.metrics_interval),
         };
 
         handler.start_cache_cleanup();
@@ -163,11 +168,12 @@ impl Handler {
     fn start_metrics_reporter(&self) {
         let metrics = self.metrics.clone();
         let cache = self.cache.clone();
+        let interval_duration = self.metrics_interval;
 
         info!("Starting metrics reporter");
 
         tokio::spawn(async move {
-            let mut interval = interval(Duration::from_secs(METRICS_INTERVAL));
+            let mut interval = interval(interval_duration);
 
             loop {
                 interval.tick().await;
@@ -198,11 +204,12 @@ impl Handler {
 
     fn start_cache_cleanup(&self) {
         let cache = self.cache.clone();
+        let interval_duration = self.cache_cleanup_interval;
 
         info!("Starting cache cleanup task");
 
         tokio::spawn(async move {
-            let mut interval = interval(Duration::from_secs(CACHE_CLEANUP_INTERVAL));
+            let mut interval = interval(interval_duration);
 
             loop {
                 interval.tick().await;

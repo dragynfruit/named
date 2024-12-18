@@ -1,6 +1,6 @@
 [package]
 name = "named"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
@@ -21,8 +21,7 @@ metrics = "0.24.0"
 once_cell = "1.20.2"
 pico-args = "0.5.0"
 rustls = "0.21.12"
-rustls-platform-verifier = "0.1.1"
-serde = "1.0.214"
+serde = { version = "1.0.214", features = ["derive"] }
 sled = "0.34.7"
 thiserror = "2.0.3"
 tokio = { version = "1.41.0", default-features = false, features = [
@@ -31,6 +30,8 @@ tokio = { version = "1.41.0", default-features = false, features = [
     "signal",
     "net",
 ] }
+toml = "0.5.11"
+webpki-roots = "0.26.7"
 
 [profile.release]
 lto = true

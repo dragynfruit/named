@@ -10,7 +10,7 @@ use log::{debug, error, info, warn};
 use metrics::{counter, gauge, histogram};
 use once_cell::sync::Lazy;
 use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
+    net::SocketAddr,
     sync::Arc,
     time::Duration,
 };
@@ -20,14 +20,25 @@ use tokio::{
     sync::RwLock,
     time::{timeout, Instant},
 };
+use rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore};
+use webpki_roots::TLS_SERVER_ROOTS;
+use crate::config::Config;
 
 // Constants for configuration
-const DNS_TIMEOUT: Duration = Duration::from_secs(5);
-const DNS_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 443);
-const DNS_HOST: &str = "cloudflare-dns.com";
-static CONFIG: Lazy<rustls::ClientConfig> = Lazy::new(|| {
+static CONFIG: Lazy<ClientConfig> = Lazy::new(|| {
     info!("Initializing TLS configuration");
-    rustls_platform_verifier::tls_config()
+    let mut root_store = RootCertStore::empty();
+    root_store.add_trust_anchors(TLS_SERVER_ROOTS.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject.as_ref().to_vec(),
+            ta.subject_public_key_info.as_ref().to_vec(),
+            ta.name_constraints.as_ref().map(|nc| nc.as_ref().to_vec()),
+        )
+    }));
+    ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(root_store)
+        .with_no_client_auth()
 });
 
 #[derive(Error, Debug)]
@@ -44,23 +55,25 @@ pub struct Resolver {
     client: RwLock<AsyncClient>,
     client_creation_count: std::sync::atomic::AtomicU64,
     last_client_creation: std::sync::atomic::AtomicU64,
+    dns_addr: SocketAddr,
+    dns_host: String,
+    dns_timeout: Duration,
 }
 
 impl Resolver {
-    async fn create_client() -> Result<AsyncClient, ResolverError> {
+    async fn create_client(dns_addr: &SocketAddr, dns_host: &str) -> Result<AsyncClient, ResolverError> {
         let start = Instant::now();
         info!(
-            "Creating new DNS client [endpoint={}:{}, host={}]",
-            DNS_ADDR.ip(),
-            DNS_ADDR.port(),
-            DNS_HOST
+            "Creating new DNS client [endpoint={}, host={}]",
+            dns_addr,
+            dns_host
         );
 
         let client_config = Arc::new(CONFIG.clone());
         
         debug!("Establishing HTTPS connection to DNS server");
         let connection: HttpsClientConnect<AsyncIoTokioAsStd<TcpStream>> = HttpsClientStreamBuilder::with_client_config(client_config)
-            .build(DNS_ADDR, DNS_HOST.to_string());
+            .build(*dns_addr, dns_host.to_string());
 
         match AsyncClient::connect(connection).await {
             Ok((client, task)) => {
@@ -86,11 +99,15 @@ impl Resolver {
         }
     }
 
-    pub async fn new() -> Result<Self, ResolverError> {
+    pub async fn new(config: &Config) -> Result<Self, ResolverError> {
         info!("Initializing DNS resolver");
         let start = Instant::now();
 
-        let client = Self::create_client().await?;
+        let dns_addr: SocketAddr = config.dns_addr.parse().expect("Invalid DNS address");
+        let dns_host = config.dns_host.clone();
+        let dns_timeout = Duration::from_secs(config.dns_timeout);
+
+        let client = Self::create_client(&dns_addr, &dns_host).await?;
         let resolver = Self {
             client: RwLock::new(client),
             client_creation_count: std::sync::atomic::AtomicU64::new(1),
@@ -100,6 +117,9 @@ impl Resolver {
                     .unwrap()
                     .as_secs(),
             ),
+            dns_addr,
+            dns_host,
+            dns_timeout,
         };
 
         info!(
@@ -125,7 +145,7 @@ impl Resolver {
         let mut client = self.client.read().await.clone();
         
         let query_result = timeout(
-            DNS_TIMEOUT,
+            self.dns_timeout,
             client.query(
                 query_name.clone(),
                 request.query().query_class(),
@@ -174,7 +194,7 @@ impl Resolver {
                                     - self.last_client_creation.load(std::sync::atomic::Ordering::Relaxed)
                             );
 
-                            *self.client.write().await = Self::create_client().await?;
+                            *self.client.write().await = Self::create_client(&self.dns_addr, &self.dns_host).await?;
                             
                             self.client_creation_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                             self.last_client_creation.store(
@@ -197,7 +217,7 @@ impl Resolver {
                     "DNS query timeout [name={}, type={}, timeout={}s]",
                     query_name,
                     query_type,
-                    DNS_TIMEOUT.as_secs()
+                    self.dns_timeout.as_secs()
                 );
                 
                 counter!("dns_query_timeouts").increment(1);
