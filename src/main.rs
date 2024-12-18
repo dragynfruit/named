@@ -30,12 +30,17 @@ OPTIONS:
 ";
 
 struct AppArgs {
+    // Serve options
     host: Option<String>,
     port: Option<String>,
     config_path: Option<String>,
+    
+    // Resolve options
     dns_addr: Option<String>,
     dns_timeout: Option<String>,
     dns_host: Option<String>,
+    
+    // Handle options
     initial_cache_size: Option<String>,
     metrics_interval: Option<String>,
     cache_cleanup_interval: Option<String>,
@@ -95,51 +100,51 @@ async fn main() {
     }
 
     // Override with command line arguments or environment variables
-    config.host = args.host
+    config.serve.host = args.host
         .or_else(|| env::var("HOST").ok())
-        .unwrap_or(config.host);
+        .unwrap_or(config.serve.host);
 
-    config.port = args.port
+    config.serve.port = args.port
         .or_else(|| env::var("PORT").ok())
         .and_then(|p| p.parse().ok())
-        .unwrap_or(config.port);
+        .unwrap_or(config.serve.port);
 
-    config.dns_addr = args.dns_addr
+    config.resolve.dns_addr = args.dns_addr
         .or_else(|| env::var("DNS_ADDR").ok())
-        .unwrap_or(config.dns_addr);
+        .unwrap_or(config.resolve.dns_addr);
 
-    config.dns_timeout = args.dns_timeout
+    config.resolve.dns_timeout = args.dns_timeout
         .or_else(|| env::var("DNS_TIMEOUT").ok())
         .and_then(|t| t.parse().ok())
-        .unwrap_or(config.dns_timeout);
+        .unwrap_or(config.resolve.dns_timeout);
 
-    config.dns_host = args.dns_host
+    config.resolve.dns_host = args.dns_host
         .or_else(|| env::var("DNS_HOST").ok())
-        .unwrap_or(config.dns_host);
+        .unwrap_or(config.resolve.dns_host);
 
-    config.initial_cache_size = args.initial_cache_size
+    config.handle.initial_cache_size = args.initial_cache_size
         .or_else(|| env::var("INITIAL_CACHE_SIZE").ok())
         .and_then(|s| s.parse().ok())
-        .unwrap_or(config.initial_cache_size);
+        .unwrap_or(config.handle.initial_cache_size);
 
-    config.metrics_interval = args.metrics_interval
+    config.handle.metrics_interval = args.metrics_interval
         .or_else(|| env::var("METRICS_INTERVAL").ok())
         .and_then(|s| s.parse().ok())
-        .unwrap_or(config.metrics_interval);
+        .unwrap_or(config.handle.metrics_interval);
 
-    config.cache_cleanup_interval = args.cache_cleanup_interval
+    config.handle.cache_cleanup_interval = args.cache_cleanup_interval
         .or_else(|| env::var("CACHE_CLEANUP_INTERVAL").ok())
         .and_then(|s| s.parse().ok())
-        .unwrap_or(config.cache_cleanup_interval);
+        .unwrap_or(config.handle.cache_cleanup_interval);
 
     let handler = Handler::new(&config).await;
 
     let mut server = ServerFuture::new(handler);
-    let udp = UdpSocket::bind(format!("{}:{}", config.host, config.port))
+    let udp = UdpSocket::bind(format!("{}:{}", config.serve.host, config.serve.port))
         .await
         .expect("Failed to bind UDP socket");
     server.register_socket(udp);
-    log::info!("Listening at {}:{}", config.host, config.port);
+    log::info!("Listening at {}:{}", config.serve.host, config.serve.port);
 
     tokio::signal::ctrl_c()
         .await

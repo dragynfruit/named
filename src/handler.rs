@@ -142,9 +142,9 @@ impl Handler {
     pub async fn new(config: &Config) -> Self {
         info!(
             "Initializing DNS cache handler [cache_size={}, metrics_interval={}s, cleanup_interval={}s]",
-            config.initial_cache_size,
-            config.metrics_interval,
-            config.cache_cleanup_interval,
+            config.handle.initial_cache_size,
+            config.handle.metrics_interval,
+            config.handle.cache_cleanup_interval,
         );
 
         let handler = Self {
@@ -152,10 +152,10 @@ impl Handler {
                 error!("Failed to initialize resolver: {}", e);
                 e
             }).unwrap(),
-            cache: Arc::new(DashMap::with_capacity(config.initial_cache_size)),
+            cache: Arc::new(DashMap::with_capacity(config.handle.initial_cache_size)),
             metrics: Arc::new(CacheMetrics::new()),
-            cache_cleanup_interval: Duration::from_secs(config.cache_cleanup_interval),
-            metrics_interval: Duration::from_secs(config.metrics_interval),
+            cache_cleanup_interval: Duration::from_secs(config.handle.cache_cleanup_interval),
+            metrics_interval: Duration::from_secs(config.handle.metrics_interval),
         };
 
         handler.start_cache_cleanup();

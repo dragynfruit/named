@@ -1,0 +1,18 @@
+# Sample configuration for the named application
+
+# DNS Resolution configuration
+[resolve]
+dns_addr = "1.1.1.1:443"
+dns_timeout = 5
+dns_host = "cloudflare-dns.com"
+
+# Server configuration
+[serve]
+host = "127.0.0.2"
+port = 53
+
+# Request handling configuration
+[handle]
+initial_cache_size = 10000
+metrics_interval = 60
+cache_cleanup_interval = 60

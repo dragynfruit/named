@@ -103,9 +103,9 @@ impl Resolver {
         info!("Initializing DNS resolver");
         let start = Instant::now();
 
-        let dns_addr: SocketAddr = config.dns_addr.parse().expect("Invalid DNS address");
-        let dns_host = config.dns_host.clone();
-        let dns_timeout = Duration::from_secs(config.dns_timeout);
+        let dns_addr: SocketAddr = config.resolve.dns_addr.parse().expect("Invalid DNS address");
+        let dns_host = config.resolve.dns_host.clone();
+        let dns_timeout = Duration::from_secs(config.resolve.dns_timeout);
 
         let client = Self::create_client(&dns_addr, &dns_host).await?;
         let resolver = Self {
